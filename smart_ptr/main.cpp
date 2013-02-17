@@ -1,4 +1,7 @@
 #include <iostream>
+#include <memory>
+#include <string>
+#include <vector>
 
 #include "smart_ptr.hpp"
 #include "der.hpp"
@@ -7,7 +10,23 @@ using namespace std;
 
 int main()
 {
-   
+
+    vector< Smart_ptr<Der> > v;
+    Smart_ptr<Der>  d (new Der (1));
+
+    while (true)
+        try
+        {
+            v.push_back(d);
+        }
+        catch (exception &e)
+        {
+            cout << "caught" << e.what();
+            break;
+        }
+
+
+
 /*
     // Memory always leaks    
     Smart_ptr<Der> m (new Der(1));

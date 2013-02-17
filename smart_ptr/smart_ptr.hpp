@@ -1,97 +1,109 @@
 #ifndef SMART_PTR
 #define SMART_PTR
 
-#include <string>
-#include <iostream>
+#include <algorithm>
 
-using namespace std;
-
+//
+// Reference counting smart pointer.
+// It is guaranteed that no resources are leaked in the face of exceptions.
+//
 template<class T>
 class Smart_ptr
 {
 private:
     T *m_pT;
     int *m_pRefCount;
-    std::string m_ctor;
+
+    typedef Smart_ptr<T> this_type;
+
+    // make sure we dont delete a incomplete type pointer
+    // throws nothing
+    void checked_delete ()
+    {
+        typedef char type_must_be_complete[ sizeof(T)? 1: -1 ];
+        (void) sizeof(type_must_be_complete);
+        delete m_pT;
+        
+        delete m_pRefCount;
+    }
+
+    // throws nothing
+    void swap (Smart_ptr<T> &rObj)
+    {
+        std::swap (m_pT, rObj.m_pT);
+        std::swap (m_pRefCount, rObj.m_pRefCount);
+    }
 
 public:
+
+    // throws nothing
+	Smart_ptr ()
+        :   m_pT (NULL),
+            m_pRefCount (NULL)
+    {
+    }
+
+    // we take addr of data on heap and use it
     Smart_ptr (T *pObj)
         :   m_pT (pObj),
-            m_pRefCount (new int),
-            m_ctor (string ("CTOR_1"))
+            m_pRefCount (NULL)
     {
-        *m_pRefCount = 1;
+        try
+        {
+            m_pRefCount = new int;
+        }
+        catch (...)
+        {
+            checked_delete ();
+            throw;
+        }
 
-                                                                       
-        cout << "Smart_ptr::Smart_ptr refcount " << *m_pRefCount << " " << m_ctor << endl;
+        *m_pRefCount = 1;
     }
 
-    Smart_ptr ()
-        :   m_pT (NULL),
-            m_pRefCount (new int),
-            m_ctor (string ("CTOR_2"))
-    {
-        *m_pRefCount = 1;
-                                                                       
-        cout << "Smart_ptr::Smart_ptr refcount " << *m_pRefCount << " " << m_ctor << endl;
-    }
-
-
-
+    // both objetcs share same memory on heap
+    // throws nothing
     Smart_ptr (Smart_ptr<T> &rObj)
-        :   m_pT(rObj.m_pT), 
-            m_pRefCount(rObj.m_pRefCount), 
-            m_ctor(string ("COPY_CTOR")) 
+        :   m_pT((rObj.m_pT == NULL) ? NULL : rObj.m_pT), 
+            m_pRefCount((rObj.m_pRefCount == NULL) ? NULL : rObj.m_pRefCount) 
     { 
-        (*m_pRefCount)++; 
-        cout << "Smart_ptr::Smart_ptr(&) refcount of rObj " << *m_pRefCount << " " << m_ctor << endl;
+        if (m_pRefCount != NULL)
+            (*m_pRefCount)++;
     }
+
+
+    // both objetcs share same memory on heap
+    // throws nothing
+    Smart_ptr (const Smart_ptr<T> &rObj)
+        :   m_pT((rObj.m_pT == NULL) ? NULL : rObj.m_pT), 
+            m_pRefCount((rObj.m_pRefCount == NULL) ? NULL : rObj.m_pRefCount) 
+    { 
+        if (m_pRefCount != NULL)
+            (*m_pRefCount)++;
+    }
+
     
+    // now both objects are sharing same data on heap
+    // throws nothing
     Smart_ptr& operator= (Smart_ptr<T> &rObj)
     {
-        (*m_pRefCount)--; 
-        cout << "Smart_ptr::op= prev refcount " << *m_pRefCount << endl;
-        if (*m_pRefCount == 0)
-        {
-            delete m_pRefCount; 
-            delete m_pT; 
-            cout << "Smart_ptr::op= delete instance" << endl;
-        }
-             
-        m_pRefCount = rObj.m_pRefCount; 
-        (*m_pRefCount)++; 
-             
-        m_pT = rObj.m_pT; 
-        m_ctor = string ("ASSGN_CTOR"); 
-             
-        cout << "Smart_ptr::op= refcount " << *m_pRefCount << " " << m_ctor << endl; 
+        this_type(rObj).swap(*this);
         return *this;
-         
     }
 
+    // throws nothing
     ~Smart_ptr ()
     {
-        cout << "Smart_ptr::~Smart_ptr--- " << *m_pRefCount << endl;
-        (*m_pRefCount)--;
+        if (!m_pRefCount)
+            return;
 
-        int tmp = *m_pRefCount;
+        (*m_pRefCount)--;
 
         // last ref. so delete the memory
         if (*m_pRefCount == 0)
-        {
-            delete m_pT;
-            delete m_pRefCount;
-            cout << "Smart_ptr::~Smart_ptr delete instance" << endl;
-        }
-
-        cout << "Smart_ptr::~Smart_ptr refcount " << tmp << " " << m_ctor << endl;
+            checked_delete ();
     }
 
-
-    int getVal()
-    {
-        return m_pT->getVal();
-    }
 
     T* operator->()
     {
@@ -101,6 +113,11 @@ public:
     T& operator*()
     {
         return *m_pT;
+    }
+
+    bool isAssigned()
+    {
+        return !(m_pT == NULL);
     }
 };
 
